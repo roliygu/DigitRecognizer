@@ -1,30 +1,60 @@
 # coding: utf-8
 
 import csv
+import random
 
 Train  = '../Data/train.csv'
 Test   = '../Data/test.csv'
 OutPut = '../Data/output.txt'
 TrainBit = '../Data/trainbit.txt'
 TestBit = '../Data/testbit.txt'
+NumFile = ["../Data/Num"+str(i) for i in range(10)]
+TestFile = ["../Data/Test"+str(i) for i in range(10)]
+
+
+def line2list(line):
+	return [line[i*2] for i in range(28)]
+
+#def makeTrainData(filename, )
+
+class OneNumber:
+	def __init__(self, List, lab):
+		'''
+		 从一个长度为28,每个元素为一行字符串的列表中格式化成28*28的数字列表
+		'''
+		self.data = [int(List[i*2]) for i in range(28)]
+		self.label = lab
+
+def load_csv2list(CSV):
+	# 装载csv数据,并转成列表
+	csvfile = file(CVS, 'rb')
+	L = list(csv.reader(csvfile))
+	csvfile.close()
+	return L
+
+def load2list(filename):
+	# 装载filename数据,并转成列表,filename是str
+	datafile = open(filename, 'r')
+	L = list(datafile.readlines())
+	datafile.close()
+	return L
 
 def csv2txt(CVS, TXT):
+	# 将csv转成txt,得到的txt末尾多一换行,需手动去掉
 	csvfile = file(CVS, 'rb')
+	txtfile = file(TXT, 'w')
 	reader = csv.reader(csvfile)
 	for i in reader:
-		L.append(i)
-	csvfile.close()
-	txtfile = file(TXT,'w')
-	for i in L:
 		for j in i:
 			txtfile.write(j)
 			txtfile.write(' ')
 		txtfile.write('\n')
+	csvfile.close()
 	txtfile.close()
-	print "Tranced Completed\n"
+	print "CSV2TXT Completed\n"
 
 def LoadDataCVS(add):
-	# 返回每个数据785维的全部数据列表
+	# 
 	Data = []
 	count=0
 	csvfile = file(add, 'rb')
@@ -70,15 +100,37 @@ def Divide():
 		return index+29
 	file = open(TrainBit, 'r')
 	Allines = file.readlines()
-	Add = "../Data/Num"
-	S = [ Add+str(i) for i in range(10)]
-	File = [open(S[i],'w') for i in range(10)]
+	File = [open(i,'w') for i in NumFilek]
 	index = 0 
 	while index < len(Allines):
 		setNum(Allines, index)
 		index += 29
 	for i in File:
 		i.close()
+
+def getNum_Divide():
+	# 从单独的数字文件中得到数字,分成10个测试集
+	def wri(rlist, wfile, start, numer):
+		for i in range(numer):
+			wfile.write(rlist[start+i])
+		return start+numer
+	readfile = [open(i,'r') for i in NumFile]
+	writefile = [open(i,'w') for i in TestFile]
+	readfilelines = [i.readlines() for i in readfile]
+	for i in range(10):
+	Num = [413,468,417,435,407,379,413,440,406,418]
+	for i in range(10):
+		index = 0
+		for j in range(10):
+			index = wri(readfilelines[i], writefile[j], index, 28*Num[i])
+
+def get_TestTrain():
+	# 从10个测试集中随机选9个做训练集,一个做测试集
+	L = [i for i in range(10)]
+	random.shuffle(L)
+	train = L[:9]
+	test = L[10]
+
 
 
 
