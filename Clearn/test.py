@@ -16,16 +16,15 @@
 #print D
 #print StrRow2L(D[0])
 
-S = "aaaaaaaaaa"
+def line2list(line):
+	L = line.split(" ")
+	L[-1] = L[-1][:-1]
+	print L
+	return [int(i) for i in L]
 
-def F():
-	L = []
-	for i in range(10):		
-		L.append(S[:i]+str(i)+S[i+1:])
-	return L
 
-print F()
-
+line = "1 2 33 44\n"
+print line2list(line)
 # file0 = open('../Data/input0.txt','r')
 # file1 = open('../Data/input1.txt','r')
 # file2 = open('../Data/input2.txt','r')
