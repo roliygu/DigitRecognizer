@@ -4,6 +4,9 @@ import csv
 import random
 import numpy as np
 import datetime
+from sklearn import svm
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2
 
 TrainCSV  = '../Data/train.csv'
 TestCSV   = '../Data/test.csv'
@@ -18,6 +21,11 @@ MixtureTrainTXT = ["../Data/MixtureTrainTXT"+str(i) for i in range(10)]
 Number = [413,468,417,435,407,379,413,440,406,418]
 BULL = '../Data/Bull'
 TempTest = '../Data/TempTest'
+TrainData = '../Data/TrainData'
+
+Size = 24
+half = Size/2
+hh = half/2
 
 def closeFiles(Files):
 	for i in Files:
@@ -61,7 +69,7 @@ def CSVList2RowTXT(info, List):
 
 def RowTXT2BitList(File):
 	def change(n):
-		if n==0:
+		if n < 100:
 			return 0
 		else:
 			return 1
@@ -107,7 +115,7 @@ def F(List, start):
 
 def MixTXT2TrainData():
 	Data = []
-	openfile = [open(i,'r') for i in MixtureTrainTXT[:-1]]
+	openfile = [open(i,'r') for i in MixtureTrainTXT]
 	for File in openfile:
 		Filelines = File.readlines()
 		index = 0
@@ -117,6 +125,18 @@ def MixTXT2TrainData():
 				Data.append((data,i))
 				index+=28
 	closeFiles(openfile)
+	return Data
+
+def BitTXT2TestData():
+	Data = []
+	openfile = open(TestBit, 'r')
+	Filelines = openfile.readlines()
+	index = 0
+	for i in range(28000):
+		data = F(Filelines, index)
+		Data.append((data,0))
+		index+=28
+	openfile.close()
 	return Data
 
 def MixTXT2TestData():
@@ -131,6 +151,13 @@ def MixTXT2TestData():
 			index+=28
 	openfile.close()
 	return Data
+
+def dealData():
+	# 修改了bit映射之后数据全部刷新
+	Bit = [RowTXT2BitList(i) for i in RowTrainTXT]
+	BitList2MixTXT(Bit)
+	testBit = RowTXT2BitList(RowTestTXT)
+	BitList2BitTXT(TestBit, testBit)
 
 def Show(DataTup):
 	for i in range(28):
@@ -152,25 +179,32 @@ def Write(Data):
 		File.write("#####")
 	File.close()
 
+def to24(List28):
+	T = []
+	for i in range(2,26):
+		temp = List28[i][2:26]
+		T.append(temp)
+	return T
+
 def testRead():
 	File = file(TempTest, 'r')
 	Filelines = File.readlines()
 	return F(Filelines,0)
 
-def getStrokeDensity(List):
-	# List是28*28的列表,得到笔划密度,长度为14
-	index = [0,4,8,12,16,20,24]
+def getStrokeDensity(twoList):
+	# 得到笔划密度,长度为half
+	index = [i*4 for i in range((Size+3)/4)]
 	L = []
 	for i in index:
 		count = 0
-		for j in range(28):
-			if List[i][j] == 1:
+		for j in range(Size):
+			if twoList[i][j] == 1:
 				count += 1
 		L.append(count)
 	for i in index:
 		count = 0
-		for j in range(28):
-			if List[j][i] == 1:
+		for j in range(Size):
+			if twoList[j][i] == 1:
 				count += 1
 		L.append(count)
 	return L
@@ -180,8 +214,8 @@ def getOutline(twoList):
 		# 返回的是某一维列表第一个'1'和最后一个'1'的下标
 		# 如果返回的start=0,说明该行全为0
 		start = 0
-		end = 27
-		for i in range(28):
+		end = Size-1
+		for i in range(Size):
 			if oneList[i] == 1:
 				start = i
 				break
@@ -191,8 +225,8 @@ def getOutline(twoList):
 		return (start, end)
 	def getHL(twoList,index):
 		start = 0
-		end = 27
-		for i in range(28):
+		end = Size-1
+		for i in range(Size):
 			if twoList[i][index]==1:
 				start = i
 				break
@@ -209,8 +243,8 @@ def getOutline(twoList):
 	def getDiffMax(List, n):
 		# n=0表示左差,n=1表示右差
 		L = []
-		for i in range(28):
-			if i != 27:
+		for i in range(Size):
+			if i != Size-1:
 				if List[i][0]==0 or List[i+1][0]==0:
 					continue
 				else:
@@ -233,10 +267,12 @@ def getOutline(twoList):
 					maxR = i[1]
 		return minL,minR,maxL,maxR
 	Wide = [getLR(i) for i in twoList]
-	Height = [getHL(twoList, i) for i in range(28)]
+	Height = [getHL(twoList, i) for i in range(Size)]
 	MaxWide = Max(Wide)
 	MaxHeight = Max(Height)
-	Rate = MaxWide*1.0/28
+	if MaxHeight==0:
+		print Height
+	Rate = MaxWide*1.0/Size
 	RateofWH = MaxWide*1.0/MaxHeight
 	LDiff = getDiffMax(Wide, 0)
 	RDiff = getDiffMax(Wide, 1)
@@ -244,7 +280,7 @@ def getOutline(twoList):
 	(MinLD,MinRD,MaxLD,MaxRD) = (min(LDiff),min(RDiff),max(LDiff),max(RDiff))
 	LP = abs(MinLD)+abs(MaxLD)
 	RP = abs(MinRD)+abs(MaxRD)
-	return [MaxWide,MaxHeight,round(Rate,4),round(RateofWH,4),MinL,MinR,MaxL,MaxR,MinLD,MinRD,MaxLD,MaxRD,LP,RP]
+	return [MaxWide,MaxHeight,round(Rate,5),round(RateofWH,5),MinL,MinR,MaxL,MaxR,MinLD,MinRD,MaxLD,MaxRD,LP,RP]
 
 def getShadow(twoList):
 	# 得到8个边框的的投影长度,和4个中间投影,共12个特征
@@ -254,51 +290,51 @@ def getShadow(twoList):
 			if i==1:
 				count +=1
 		return count
-	up1 = [0*i for i in range(14)]
-	up2 = [0*i for i in range(14)]
-	down1 = [0*i for i in range(14)]
-	down2 = [0*i for i in range(14)]
-	for i in range(7):
-		for j in range(14):
+	up1 = [0*i for i in range(half)]
+	up2 = [0*i for i in range(half)]
+	down1 = [0*i for i in range(half)]
+	down2 = [0*i for i in range(half)]
+	for i in range(hh):
+		for j in range(half):
 			if twoList[i][j]==1:
 				up1[j] = 1
-			if twoList[i][j+14]==1:
+			if twoList[i][j+half]==1:
 				up2[j] = 1
-			if twoList[i+21][j]==1:
+			if twoList[i+half+hh][j]==1:
 				down1[j] = 1
-			if twoList[i+21][j+14]==1:
+			if twoList[i+half+hh][j+half]==1:
 				down2[j] = 1
-	left1 = [0*i for i in range(14)]
-	left2 = [0*i for i in range(14)]
-	right1 = [0*i for i in range(14)]
-	right2 = [0*i for i in range(14)]
-	for i in range(14):
-		for j in range(7):
+	left1 = [0*i for i in range(half)]
+	left2 = [0*i for i in range(half)]
+	right1 = [0*i for i in range(half)]
+	right2 = [0*i for i in range(half)]
+	for i in range(half):
+		for j in range(hh):
 			if twoList[i][j]==1:
 				left1[i] = 1
-			if twoList[i+14][j]==1:
+			if twoList[i+half][j]==1:
 				left2[i] = 1
-			if twoList[i][j+21]==1:
+			if twoList[i][j+half+hh]==1:
 				right1[i] = 1
-			if twoList[i+14][j+21]:
+			if twoList[i+half][j+half+hh]:
 				right2[i] = 1
-	mid1 = [0*i for i in range(7)]
-	mid2 = [0*i for i in range(7)]
-	mid3 = [0*i for i in range(7)]
-	mid4 = [0*i for i in range(7)]
-	(StartX, StartY) = (7, 7)
-	for i in range(7):
-		for j in range(7):
+	mid1 = [0*i for i in range(hh)]
+	mid2 = [0*i for i in range(hh)]
+	mid3 = [0*i for i in range(hh)]
+	mid4 = [0*i for i in range(hh)]
+	(StartX, StartY) = (hh, hh)
+	for i in range(hh):
+		for j in range(hh):
 			if twoList[StartX+i][StartY+j] == 1:
 				mid1[i] = 1
 				mid4[j] = 1
-			if twoList[StartX+i+7][StartY+j] == 1:
+			if twoList[StartX+i+hh][StartY+j] == 1:
 				mid1[i] = 1
 				mid2[j] = 1
-			if twoList[StartX+i+7][StartY+j] == 1:
+			if twoList[StartX+i+hh][StartY+j] == 1:
 				mid2[j] = 1
 				mid3[i] = 1
-			if twoList[StartX+i+7][StartY+j+7]:
+			if twoList[StartX+i+hh][StartY+j+hh]:
 				mid3[i] = 1
 				mid4[j] = 1
 	L = [countOne(i) for i in [up1,up2,down1,down2,left1,left2,right1,right2,mid1,mid2,mid3,mid4]]
@@ -315,21 +351,21 @@ def getCore(twoList):
 			CoreCount+=tempsum
 		return round(CoreCount,4)
 	count = 0
-	for i in range(28):
-		for j in range(28):
+	for i in range(Size):
+		for j in range(Size):
 			if twoList[i][j]==1:
 				count+=1
 	countM = 0
-	for i in range(28):
+	for i in range(Size):
 		sumM = 0
-		for j in range(28):
+		for j in range(Size):
 			sumM += twoList[i][j]*j*1.0/count
 		countM += sumM
 	countM = round(countM,4)
 	countN = 0
-	for i in range(28):
+	for i in range(Size):
 		sumN = 0
-		for j in range(28):
+		for j in range(Size):
 			sumN += twoList[i][j]*i*1.0/count
 		countN += sumN
 	countN = round(countN,4)
@@ -339,22 +375,42 @@ def getCore(twoList):
 def getFirstBlackPoint(twoList):
 	# 返回角线上首个黑点的位置,四个二维点
 	L = []
-	for i in range(28):
+	i = 0
+	while i < Size:
 		if twoList[i][i] == 1:
 			L += [i,i]
 			break
-	for i in range(28):
-		if twoList[27-i][27-i] == 1:
-			L += [27-i, 27-i]
+		else :
+			i += 1
+	if i == Size:
+		L+=[0,0]
+	i = 0
+	while i < Size:
+		if twoList[Size-1-i][Size-1-i] == 1:
+			L += [i,i]
 			break
-	for i in range(28):
-		if twoList[27-i][i] == 1:
-			L += [27-i,i]
+		else :
+			i += 1
+	if i == Size:
+		L+=[Size-1,Size-1]
+	i = 0
+	while i < Size:
+		if twoList[Size-1-i][i] == 1:
+			L += [i,i]
 			break
-	for i in range(28):
-		if twoList[i][27-i] == 1:
-			L += [i, 27-i]
+		else :
+			i += 1
+	if i == Size:
+		L+=[Size-1,0]
+	i = 0
+	while i < Size:
+		if twoList[i][Size-1-i] == 1:
+			L += [i,i]
 			break
+		else :
+			i += 1
+	if i == Size:
+		L+=[0,Size-1]	
 	return L
 
 def getNetBlock(twoList):
@@ -363,9 +419,9 @@ def getNetBlock(twoList):
 	for n in range(4):
 		for m in range(4):
 			count = 0
-			for i in range(7):
-				for j in range(7):
-					if twoList[n*7+i][m*7+j] == 1:
+			for i in range(hh):
+				for j in range(hh):
+					if twoList[n*hh+i][m*hh+j] == 1:
 						count +=1
 			L.append(count)
 	return L
@@ -376,9 +432,9 @@ def getFFT(twoList):
 	for i in range(4):
 		for j in range(4):
 			L.append(FFT[i][j])
-			L.append(FFT[i][j+24])
-			L.append(FFT[i+24][j])
-			L.append(FFT[i+24][j+24])
+			L.append(FFT[i][j+Size-4])
+			L.append(FFT[i+Size-4][j])
+			L.append(FFT[i+Size-4][j+Size-4])
 	Min = min(L)
 	Max = max(L)
 	LL = [round((i-Min)*1.0/(Max-Min),4) for i in L]
@@ -388,11 +444,103 @@ def getALL(twoList):
 	L = getStrokeDensity(twoList)+getOutline(twoList)+getShadow(twoList)+getCore(twoList)+getFirstBlackPoint(twoList)+getNetBlock(twoList)+getFFT(twoList)
 	return L
 
-starttime = datetime.datetime.now()	
-Data = MixTXT2TrainData()
-print "Lade it"
-endtime = datetime.datetime.now()	
-for i in Data:
-	getALL(i[0])
-endtime2 = datetime.datetime.now()	
-print (endtime2-endtime).seconds
+def writeData():
+	File = open(TrainData, 'w')
+	data = MixTXT2TrainData()
+	for i in data:
+		File.write(str(i[1]))
+		File.write(' ')
+		T = getALL(i[0])
+		for j in T:
+			File.write(str(j))
+			File.write(' ')
+		File.write('\n')
+	File.close()
+
+def getTrainData():
+	X = []
+	Y = []
+	data = MixTXT2TrainData()
+	for i in data:
+		temp = to24(i[0])
+		Y.append(i[1])
+		T = getALL(temp)				
+		X.append(T)
+	return (X,Y)
+
+def writeCSV(Pre):
+	csvfile = file('csv_re.csv','wb')
+	writer = csv.writer(csvfile)
+	writer.writerow(['ImageId','Label'])
+	for i in range(len(Pre)):
+		writer.writerow([str(i+1),str(pre[i])])
+	csvfile.close()
+
+# def getTestData():
+# 	X = []
+# 	Y = []
+# 	data = MixTXT2TestData()
+# 	for i in data:
+# 		Y.append(i[1])
+# 		T = getALL(to24(i[0]))
+# 		X.append(T)
+# 	return (X,Y)
+
+def choseFeature(TrainX, TrainY, TestX):
+	cF = SelectKBest(chi2, k=100)
+	cF.fit(TrainX, TrainY)
+	check = cF.get_support()
+	newTrainX = cF.transform(TrainX)
+	newTestX = cF.transform(TestX)
+	return (newTrainX, newTestX)
+
+
+
+
+def getTestData():
+	X = []
+	data = BitTXT2TestData()
+	for i in data:
+		T = getALL(to24(i[0]))
+		X.append(T)
+	return X
+
+
+
+time = datetime.datetime.now()
+
+(TrainX, TrainY) = getTrainData()
+print "TrainData is OK"
+time1 = datetime.datetime.now()
+# (TestX, TestY) = getTestData()
+TestX = getTestData()
+print "TestData is OK"
+time2 = datetime.datetime.now()
+
+# (TrainX, TestX) = choseFeature(TrainX, TrainY, TestX)
+
+time3 = datetime.datetime.now()
+cls = svm.SVC()
+# time = datetime.datetime.now()
+cls.fit(TrainX, TrainY)
+time4 = datetime.datetime.now()
+print "SVM is OK, "
+# print (time2-time).seconds
+pre = cls.predict(TestX)
+time5 = datetime.datetime.now()
+
+writeCSV(pre)
+
+
+# count = 0
+# Len = len(TestY)
+# for i in range(Len):
+# 	if pre[i]==TestY[i]:
+# 		count +=1
+# print count,Len
+
+print "Load TrainData time is: "+str((time1-time).seconds)
+print "Load TestData time is: "+str((time2-time1).seconds)
+print "Featurese Chose time is: "+str((time3-time2).seconds)
+print "SVM time is: "+str((time4-time3).seconds)
+print "Calculte time is: "+str((time5-time4).seconds)

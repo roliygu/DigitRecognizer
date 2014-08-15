@@ -1,23 +1,15 @@
 # coding: utf-8
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2
 
-def getLR(List):
-	# 返回的是某一维列表第一个'1'和最后一个'1'的下标
-	start = 0
-	end = 27
-	for i in range(28):
-		if List[i] == 1:
-			start = i
-			break
-	if start != 0:
-		while List[end] == 0 :
-			end -= 1
-	return (start, end)
+X = [[1,2,3,4,5,6],[2,4,5,8,10,12]]
+y = [1,2]
+testX = [[3,2,3,6,5,6],[2,4,5,3,7,12]]
 
+cl = SelectKBest(chi2, k=3)
+cl.fit(X,y)
+newX = cl.transform(X)
+newtest = cl.transform(testX)
 
-L1 = [0*i for i in range(28)]
-L2 = [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0]
-L3 = [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-
-print getLR(L1)
-print getLR(L2)
-print getLR(L3)
+print newX
+print newtest
